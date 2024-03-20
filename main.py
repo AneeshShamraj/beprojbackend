@@ -9,7 +9,7 @@ import email
 # import yaml
 
 # IMPORT FUNCTIONS FROM OTHER FILES
-from model import model_pipeline
+# from model import model_pipeline
 
 # INIT OBJECTS
 app = FastAPI()
@@ -123,32 +123,32 @@ def send_email(user,password,receiver,emailsubject,emailbody):
 #     result=model_pipeline(file1,file2)
 #     return result
 
-@app.post("/read")
-def read_item(file1:UploadFile,file2:UploadFile):
-    verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb", savedir="pretrained_models/spkrec-ecapa-voxceleb")
+# @app.post("/read")
+# def read_item(file1:UploadFile,file2:UploadFile):
+#     verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb", savedir="pretrained_models/spkrec-ecapa-voxceleb")
 
-    # print(file1)
-    # print(file1.file)
-    # print(file1.file._file)
-    print('testss')
+#     # print(file1)
+#     # print(file1.file)
+#     # print(file1.file._file)
+#     print('testss')
 
-    path1 = f"testset/{file1.filename}"
-    path2 = f"testset/{file2.filename}"
+#     path1 = f"testset/{file1.filename}"
+#     path2 = f"testset/{file2.filename}"
 
-    with open(path1, 'w+b') as file:
-        shutil.copyfileobj(file1.file, file)
-    with open(path2, 'w+b') as file:
-        shutil.copyfileobj(file2.file, file)
+#     with open(path1, 'w+b') as file:
+#         shutil.copyfileobj(file1.file, file)
+#     with open(path2, 'w+b') as file:
+#         shutil.copyfileobj(file2.file, file)
 
-    # file_path = f"testset/{file1.filename}"
-    # with open(file_path, "wb") as f:
-    #     f.write(file1.file.read())
-    score, prediction = verification.verify_files(path1,path2)
-    print(score)
-    print(prediction)
+#     # file_path = f"testset/{file1.filename}"
+#     # with open(file_path, "wb") as f:
+#     #     f.write(file1.file.read())
+#     score, prediction = verification.verify_files(path1,path2)
+#     print(score)
+#     print(prediction)
 
 
-    return {"prediction": prediction.item(),"score": score.item()}
+#     return {"prediction": prediction.item(),"score": score.item()}
     # result=model_pipeline(path1,path2)
     # return result
 
