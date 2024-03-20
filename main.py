@@ -1,35 +1,27 @@
-from typing import Union
-from model import model_pipeline
+# IMPORT EXTERNAL PACKAGES
 from fastapi import FastAPI, UploadFile
-
-
-import shutil
-
-from speechbrain.pretrained import SpeakerRecognition
-# verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb", savedir="pretrained_models/spkrec-ecapa-voxceleb")
-
-
-app = FastAPI()
-
 import smtplib
+import imaplib
 import ssl
 from email.message import EmailMessage
-
-import imaplib
-import pprint
-
+import shutil
 import email
+# import yaml
 
-import yaml
+# IMPORT FUNCTIONS FROM OTHER FILES
+from model import model_pipeline
 
-with open("credentials.yml") as f:
-    content = f.read()
+# INIT OBJECTS
+app = FastAPI()
 
-# from credentials.yml import user name and password
-my_credentials = yaml.load(content, Loader=yaml.FullLoader)
-
-#Load the user name and passwd from yaml file
-user, password = my_credentials["user"], my_credentials["password"]
+# with open("credentials.yml") as f:
+#     content = f.read()
+#
+# # from credentials.yml import user name and password
+# my_credentials = yaml.load(content, Loader=yaml.FullLoader)
+#
+# #Load the user name and passwd from yaml file
+# user, password = my_credentials["user"], my_credentials["password"]
 
 
 @app.get("/")
@@ -37,7 +29,7 @@ def read_root():
     return {"Hello": "World"}
 
 @app.get("/reademail")
-def read_email():
+def read_email(user,password):
 
     #URL for IMAP connection
     imap_url = 'imap.gmail.com'
@@ -73,34 +65,36 @@ def read_email():
     # https://stackoverflow.com/questions/1463074/how-can-i-get-an-email-messages-text-content-using-python
 
     # NOTE that a Message object consists of headers and payloads.
-
+    resp=[]
     for msg in msgs[::-1]:
+        mail={}
         for response_part in msg:
             if type(response_part) is tuple:
                 my_msg=email.message_from_bytes((response_part[1]))
-                print("_________________________________________")
-                print ("subj:", my_msg['subject'])
-                print ("from:", my_msg['from'])
-                print ("body:")
+                mail['subject']=my_msg['subject']
+                mail['from']=my_msg['from']
+                body=""
                 for part in my_msg.walk():
                     #print(part.get_content_type())
                     if part.get_content_type() == 'text/plain':
-                        print (part.get_payload())
+                        body=body+part.get_payload()
+                mail['body']=body
+        resp.append(mail)
+    return resp
+
 
 
 
 @app.get("/sendemail")
-def send_email():
+def send_email(user,password,receiver,emailsubject,emailbody):
     # Define email sender and receiver
     email_sender = user
     email_password = password
-    email_receiver = 'umangumangspam@gmail.com'
+    email_receiver = receiver
 
     # Set the subject and body of the email
-    subject = 'TEST1'
-    body = """
-    TEST1
-    """
+    subject = emailsubject
+    body = emailbody
 
     em = EmailMessage()
     em['From'] = email_sender
