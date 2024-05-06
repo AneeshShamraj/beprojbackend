@@ -12,11 +12,12 @@ import email
 # import yaml
 import speech_recognition as sr
 import os
-
+from speechbrain.pretrained import SpeakerRecognition
 from typing_extensions import Annotated
 from typing import Union, List
 
 from pydantic import BaseModel
+import time
 #
 class Recipients(BaseModel):
     recipients_address: List[str]
@@ -32,6 +33,8 @@ import json
 # from audiofuncs import convert_audio
 # from audiofuncs import audio
 
+
+
 # INIT OBJECTS
 app = FastAPI()
 origins = ["*"]
@@ -44,6 +47,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb",
+                                               savedir="pretrained_models/spkrec-ecapa-voxceleb")
+
 # with open("credentials.yml") as f:
 #     content = f.read()
 #
@@ -52,15 +58,17 @@ app.add_middleware(
 #
 # #Load the user name and passwd from yaml file
 # user, password = my_credentials["user"], my_credentials["password"]
-import os
+
 
 
 import pydub
 
-
+import os
 def process(string):
     string=string.lower()
     return string.replace(" ", "")
+
+
 
 
 @app.get("/")
@@ -84,6 +92,8 @@ def check_email(user_email:str = Form()): #here audio is the key in the key valu
     # Filter the data based on a condition
     filtered_data = [obj for obj in data if obj["user"] == user_email]
 
+
+
     if len(filtered_data)==0:
         return {"isPresent":False}
     elif filtered_data[0]["path"]=="":
@@ -103,7 +113,7 @@ def register_password(user_email:str = Form(),user_password:str = Form()): #here
 
 @app.post("/registervoice")
 def register_voice(audio_data:UploadFile,user_email:str = Form()): #here audio is the key in the key value pair in frontend
-    path1 = f"people/{audio_data.filename}.wav"
+    path1 = f"people/mihir.wav"
     with open(path1, 'w+b') as file:
         shutil.copyfileobj(audio_data.file._file, file)
 
@@ -117,15 +127,20 @@ def register_voice(audio_data:UploadFile,user_email:str = Form()): #here audio i
     with open("data.json", "w") as f:
         json.dump(data, f)
 
-    return "Successful"
+    return {"isRegistered": True}
 
 
 @app.post("/reademail")
 async def read_email(user_email: str = Form()):
     # print(user)
-    # user = "saneesh3152@gmail.com"
-    password = "cgqi eyxd nycx xekf"
-    print(password)
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    # Filter the data based on a condition
+    filtered_data = [obj for obj in data if obj["user"] == user_email]
+
+
+    password=filtered_data[0]["password"]
     #URL for IMAP connection
     imap_url = 'imap.gmail.com'
 
@@ -149,7 +164,7 @@ async def read_email(user_email: str = Form()):
     #Iterate through messages and extract data into the msgs list
     for num in mail_id_list:
         typ, data = my_mail.fetch(num, '(RFC822)') #RFC822 returns whole message (BODY fetches just body)
-        msgs.append(data)
+        msgs.append([data,num])
 
     #Now we have all messages, but with a lot of details
     #Let us extract the right text and print on the screen
@@ -163,11 +178,12 @@ async def read_email(user_email: str = Form()):
     resp=[]
     for msg in msgs[::-1]:
         mail={}
-        for response_part in msg:
+        for response_part in msg[0]:
             if type(response_part) is tuple:
                 my_msg=email.message_from_bytes((response_part[1]))
                 mail['subject']=my_msg['subject']
                 mail['from']=my_msg['from']
+                mail['id']=msg[1]
                 body=""
                 for part in my_msg.walk():
                     #print(part.get_content_type())
@@ -176,16 +192,25 @@ async def read_email(user_email: str = Form()):
                 mail['body']=body
 
         resp.append(mail)
-    resp=resp[:5]
+    # resp=resp[:5]
     json_compatible_item_data = jsonable_encoder(resp)
     return JSONResponse(content=json_compatible_item_data)
     # return str(resp)
 
 
-@app.get("/readspecificemail")
+@app.post("/readspecificemail")
 def read_specific_email(user_email: str = Form(),sender_email: str = Form()):
-    user="saneesh3152@gmail.com"
-    password="cgqi eyxd nycx xekf"
+    # ADD DELETE MAIL FUNCTIONALITY WITH SEARCH MAIL
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    # Filter the data based on a condition
+    filtered_data = [obj for obj in data if obj["user"] == user_email]
+    user=user_email
+    sender_email = sender_email.lower()
+    sender_email=sender_email.replace(" ", "")
+    print(sender_email)
+    password=filtered_data[0]["password"]
 
     imap_url = 'imap.gmail.com'
     my_mail = imaplib.IMAP4_SSL(imap_url)
@@ -202,7 +227,7 @@ def read_specific_email(user_email: str = Form(),sender_email: str = Form()):
     for num in mail_id_list:
         typ, data = my_mail.fetch(num, '(RFC822)') #RFC822 returns whole message (BODY fetches just body)
 
-        msgs.append({'data':data,'id':num})
+        msgs.append([data,num])
 
     #Now we have all messages, but with a lot of details
     #Let us extract the right text and print on the screen
@@ -216,19 +241,22 @@ def read_specific_email(user_email: str = Form(),sender_email: str = Form()):
     resp=[]
     for msg in msgs[::-1]:
         mail={}
-        for response_part in msg:
+        for response_part in msg[0]:
             if type(response_part) is tuple:
                 my_msg=email.message_from_bytes((response_part[1]))
                 mail['subject']=my_msg['subject']
                 mail['from']=my_msg['from']
-                mail['id']=num
+                mail['id'] = msg[1]
                 body=""
                 for part in my_msg.walk():
                     #print(part.get_content_type())
                     if part.get_content_type() == 'text/plain':
                         body=body+part.get_payload()
                 mail['body']=body
+        print(mail)
         resp.append(mail)
+
+
     return resp
 
 
@@ -307,23 +335,44 @@ def verification_with_body(audio_data:UploadFile,user_email: str = Form()):
     # print("After export")
     # filename="output.wav"
 
+    # verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb",
+    #                                                savedir="pretrained_models/spkrec-ecapa-voxceleb")
 
-    r = sr.Recognizer()
-    with sr.AudioFile(path1) as source:
-        # listen for the data (load audio to memory)
-        audio_data = r.record(source)
-        # recognize (convert from speech to text)
-        text = r.recognize_google(audio_data)
-    text=text.lower()
-    # index=text.find('end body')
-    # text=text[0:index]
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    # Filter the data based on a condition
+    filtered_data = [obj for obj in data if obj["user"] == user_email]
+
+    path2=filtered_data[0]["path"]
+
+    score, prediction = verification.verify_files(path1, path2)
+    print(score)
+    # print(prediction)
+    # prediction.item()
+    if score.item()>0.35:
+        result = True
+        r = sr.Recognizer()
+        with sr.AudioFile(path1) as source:
+            # listen for the data (load audio to memory)
+            audio_data = r.record(source)
+            # recognize (convert from speech to text)
+            text = r.recognize_google(audio_data)
+        text=text.lower()
+
+        # CHECK EXIT COMMAND HERE
+        index=text.find('done with body')
+        text=text[0:index]
+
+    else:
+        text=""
+        result=False
+
+
     os.remove('file.wav')
 
-    #PROCESS IT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
     return {"body":text,
-            "isVerified":True}
+            "isVerified":result}
 
 
 
@@ -357,8 +406,10 @@ def verification_with_body(audio_data:UploadFile,user_email: str = Form()):
     #     smtp.sendmail(email_sender, email_receiver, em.as_string())
     #
     # return {"result":"Email sent"}
-@app.post("/voiceverification")
-def verify_user(audio_data:UploadFile,user_email: str = Form()):
+
+
+# @app.post("/voiceverification")
+# def verify_user(audio_data:UploadFile,user_email: str = Form()):
     # Define email sender and receiver
     # email_sender = user
     # email_password = password
@@ -426,8 +477,8 @@ def verify_user(audio_data:UploadFile,user_email: str = Form()):
     # result=model_pipeline(path1,filtered_data[0]["path"])
     # os.remove('file.wav')
     # return result
-    return {"isVerified":True}
-
+    # return {"isVerified":True}
+#
 # @app.post("/compare")
 # def compare_item(file1:UploadFile,file2:UploadFile):
 #     print(file1)
@@ -439,29 +490,45 @@ def verify_user(audio_data:UploadFile,user_email: str = Form()):
 #     result=model_pipeline(file1,file2)
 #     return result
 
-# @app.post("/read")
-# def read_item(file1:UploadFile,file2:UploadFile):
-#     verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb", savedir="pretrained_models/spkrec-ecapa-voxceleb")
+@app.post("/voiceverification")
+def verify_user(audio_data:UploadFile,user_email: str = Form()):
+    ts1 = time.time()
+    verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb",
+                                                   savedir="pretrained_models/spkrec-ecapa-voxceleb")
+    ts2=time.time()
+    print(ts2-ts1)
+    # print(file1)
+    # print(file1.file)
+    # print(file1.file._file)
+    with open("data.json", "r") as f:
+        data = json.load(f)
 
-#     # print(file1)
-#     # print(file1.file)
-#     # print(file1.file._file)
-#     print('testss')
+    # Filter the data based on a condition
+    filtered_data = [obj for obj in data if obj["user"] == user_email]
 
-#     path1 = f"testset/{file1.filename}"
-#     path2 = f"testset/{file2.filename}"
 
-#     with open(path1, 'w+b') as file:
-#         shutil.copyfileobj(file1.file, file)
-#     with open(path2, 'w+b') as file:
-#         shutil.copyfileobj(file2.file, file)
+    path2=filtered_data[0]["path"]
 
-#     # file_path = f"testset/{file1.filename}"
-#     # with open(file_path, "wb") as f:
-#     #     f.write(file1.file.read())
-#     score, prediction = verification.verify_files(path1,path2)
-#     print(score)
-#     print(prediction)
+    path1 = f"file.wav"
+
+    with open(path1, 'w+b') as file:
+        shutil.copyfileobj(audio_data.file._file, file)
+
+
+    # file_path = f"testset/{file1.filename}"
+    # with open(file_path, "wb") as f:
+    #     f.write(file1.file.read())
+    # path1="test.wav"
+
+    score, prediction = verification.verify_files(path1,path2)
+    # print(score)
+    # print(prediction)
+    os.remove('file.wav')
+    if score.item() > 0.35:
+        result=True
+    else:
+        result=False
+    return {"isVerified": result}
 
 
 #     return {"prediction": prediction.item(),"score": score.item()}
@@ -492,16 +559,20 @@ def verify_user(audio_data:UploadFile,user_email: str = Form()):
 #     # return result
 
 @app.post("/sendemail")
-def send_email(user_email: str = Form(),og_sender: str = Form(),recipients_address: str = Form(...),subject: str = Form(),body: str = Form()):
+def send_email(user_email: str = Form(),og_sender: str = Form(),
+               recipients_address: str = Form(...),subject: str = Form(),
+               body: str = Form()):
 
 
-    #CHANGE THIS IN FINAL CODE AND MAP USER
-    user_email="saneesh3152@gmail.com"
+
     with open("data.json", "r") as f:
         data = json.load(f)
 
     # Filter the data based on a condition
     filtered_data = [obj for obj in data if obj["user"] == user_email]
+
+
+
 
 
     email_password=filtered_data[0]["password"]
@@ -527,3 +598,32 @@ def send_email(user_email: str = Form(),og_sender: str = Form(),recipients_addre
         smtp.sendmail(user_email, rec_list, em.as_string())
 
     return {"sent":True}
+
+@app.post("/deleteemail")
+def delete_email(user_email: str = Form(),id:str = Form()):
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    # Filter the data based on a condition
+    filtered_data = [obj for obj in data if obj["user"] == user_email]
+
+
+    password=filtered_data[0]["password"]
+    #URL for IMAP connection
+    imap_url = 'imap.gmail.com'
+
+    # Connection with GMAIL using SSL
+    my_mail = imaplib.IMAP4_SSL(imap_url)
+
+    # Log in using your credentials
+    my_mail.login(user_email, password)
+
+    # Select the Inbox to fetch messages
+    my_mail.select('Inbox')
+
+    my_mail.store(id, '+X-GM-LABELS', '\\Trash')
+    my_mail.expunge()
+    my_mail.close()
+    my_mail.logout()
+    return {"isDeleted":True}
+

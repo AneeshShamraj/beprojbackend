@@ -3,3 +3,7 @@
 __pycache__/
 audio_cache/
 credentials.yml
+venv/
+people/
+pretrained_models/
+testaudiobucket/
